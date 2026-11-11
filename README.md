@@ -4,7 +4,7 @@
 
 ## 开发与运行
 
-需要 Python 3.12、Forge Msgs 2.x、Common 2.1、Dora 1.1，实际运行使用 ROS2 Jazzy。
+需要 Python 3.12、Forge Msgs 1.3.0、Common 1.0.1、Dora 0.4.1，实际运行使用 ROS2 Jazzy。
 
 ```bash
 uv sync --group dev
@@ -30,3 +30,6 @@ BUILD_PYTHON=.venv/bin/python bash scripts/build_pyinstaller.sh
 ROS2、算法后端和 Livox 消息工作空间由部署方提供，不包含在 Node 压缩包中。
 启动前 source ROS2 和所需消息工作空间，先运行 `--check-runtime` 检查动态消息类型支持；该检查不连接硬件。
 构建使用 `BUILD_PYTHON` 指定已安装项目和构建依赖的 Python。源码测试、构建、运行检查应在同一锁定环境执行。
+
+通信运行时固定为 Dora 0.4.1、Forge Msgs 1.3.0、Forge Common 1.0.1。
+使用本节点的数据流须采用 Dora CLI 0.4.1；二进制包含同版本的 Dora Python 绑定。
