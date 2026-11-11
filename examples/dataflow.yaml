@@ -1,0 +1,20 @@
+# Interface wiring template: caller/sensor/etc. are externally supplied dynamic nodes.
+nodes:
+- id: caller
+  path: dynamic
+  outputs:
+  - policy_command
+  - finish
+- id: localization
+  path: localization
+  args: --config ../config/policy.example.yaml
+  inputs:
+    tick: dora/timer/millis/20
+    policy_command:
+      source: caller/policy_command
+      queue_size: 32
+    finish: caller/finish
+  outputs:
+  - status
+  - pose
+  - health

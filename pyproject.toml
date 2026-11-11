@@ -1,0 +1,40 @@
+[project]
+name = "forge-localization"
+version = "0.1.0"
+description = "Reusable Forge localization component for ROS2 navigation"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+authors = [{ name = "X-ERA" }]
+dependencies = [
+    "dora-rs>=1.1.0,<2",
+    "forge-msgs>=2.0.0,<3",
+    "forge-common>=2.1.0,<3",
+    "numpy>=1.26,<3",
+    "pyyaml>=6,<7",
+]
+
+[project.scripts]
+localization = "localization.main:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.16,<0.18"]
+build = ["pyinstaller>=6.18"]
+
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]

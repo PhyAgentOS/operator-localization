@@ -1,0 +1,8 @@
+ros_domain_id: 91
+session_dir: /tmp/navigation-localization
+map_file: /opt/navigation/maps/office/map.yaml
+time_mapping_id: set-after-clock-check
+odometry_topic: /odom
+scan_topic: /scan
+backend_params: /opt/navigation/config/navigation.yaml
+launch_file: /opt/navigation/config/localization.launch.py
