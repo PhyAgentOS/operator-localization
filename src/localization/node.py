@@ -24,7 +24,22 @@ from localization.relocalization import (
 )
 
 
+def recovery_required(healthy, reason, agreement):
+    if healthy:
+        return False
+    if reason == "正在校核扫描贴合及定位收敛；必要时重新定位":
+        return isinstance(agreement, (int, float)) and agreement < 0.45
+    return reason in {
+        "定位发生跳变，请重新设置初始位置",
+        "定位不确定性较高，请重新设置初始位置",
+        "连续里程计未显示相应运动，但地图定位持续变化，请重新初始化",
+    }
+
+
 def run(cfg: dict) -> None:
+    from .backend import materialize
+
+    cfg = materialize(cfg)
     import rclpy
     from geometry_msgs.msg import PoseWithCovarianceStamped
     from lifecycle_msgs.srv import GetState
@@ -78,8 +93,14 @@ def run(cfg: dict) -> None:
     identity = map_identity(cfg["map_file"])
     cache_file = cfg.get("pose_cache_file", str(Path(cfg["session_dir"]) / "last_pose.json"))
 
+    from .snapshot import grid_value, write_snapshot
+
+    snapshot_dir = cfg.get("snapshot_dir")
+
     def on_map(msg):
         nonlocal grid, info
+        if snapshot_dir:
+            write_snapshot(snapshot_dir, "map", grid_value(msg))
         grid = np.asarray(msg.data, dtype=np.int16).reshape(msg.info.height, msg.info.width)
         p, q = msg.info.origin.position, msg.info.origin.orientation
         info = (msg.info.resolution, [p.x, p.y, 2 * math.atan2(q.z, q.w)])
@@ -188,6 +209,17 @@ def run(cfg: dict) -> None:
                                 "params_file:=" + cfg["backend_params"],
                                 "mode:=localization",
                                 "autostart:=false",
+                                *(
+                                    [
+                                        "command_topic:="
+                                        + cfg.get("command_topic", "/cmd_vel_nav"),
+                                        "smoothed_topic:="
+                                        + cfg.get("smoothed_topic", "/cmd_vel_smoothed"),
+                                    ]
+                                    if Path(cfg["launch_file"]).resolve()
+                                    == Path(__file__).with_name("backend.launch.py").resolve()
+                                    else []
+                                ),
                             ],
                             cwd=Path(cfg["session_dir"]),
                             log_path=Path(cfg["session_dir"]) / "amcl.log",
@@ -381,7 +413,12 @@ def run(cfg: dict) -> None:
             if state == "initializing":
                 if amcl is not None:
                     state = "running"
-                    if pending is not None:
+                    # Loading a map establishes backend readiness, not localization.
+                    # Release load_map so its caller can request global localization;
+                    # only an explicit set_initial_pose waits for verified health.
+                    if pending is not None and (
+                        pending.command == "load_map" or not cfg.get("verify_initial_pose", False)
+                    ):
                         endpoint.emit(
                             pending,
                             "done",
@@ -526,6 +563,24 @@ def run(cfg: dict) -> None:
                     and now - initialized_at >= 4
                     and startup_updates_remaining == 0
                 )
+                if (
+                    cfg.get("verify_initial_pose", False)
+                    and pending is not None
+                    and state == "running"
+                ):
+                    if healthy:
+                        endpoint.emit(
+                            pending,
+                            "done",
+                            "Initial pose passed localization health checks",
+                            {"initialized_at": initialized_at, "pose": pose},
+                        )
+                        pending = None
+                    elif now - initialized_at > 20:
+                        endpoint.emit(
+                            pending, "error", "Initial pose did not pass localization health checks"
+                        )
+                        pending = None
                 if healthy:
                     localization_mode = "tracking"
                     if now - last_cache_save > 2:
@@ -559,6 +614,9 @@ def run(cfg: dict) -> None:
                                 {
                                     "healthy": healthy,
                                     "reason": reason,
+                                    "recovery_required": recovery_required(
+                                        healthy, reason, agreement
+                                    ),
                                     "pose": pose,
                                     "agreement": agreement,
                                     "beams": beams,
@@ -598,6 +656,10 @@ def run(cfg: dict) -> None:
                             "estimate_source": "nav2_amcl",
                             "map_id": Path(cfg["map_file"]).parent.name,
                         },
+                    )
+                if snapshot_dir and pose is not None:
+                    write_snapshot(
+                        snapshot_dir, "pose", {"pose": pose, "frame_id": "map", "healthy": healthy}
                     )
                 last_health = now
     except Exception as exc:

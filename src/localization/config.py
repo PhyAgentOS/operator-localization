@@ -17,7 +17,6 @@ REQUIRED = [
     "odometry_topic",
     "scan_topic",
     "backend_params",
-    "launch_file",
 ]
 
 
@@ -29,6 +28,7 @@ def load_config(path: str | Path | None = None) -> dict:
     value = yaml.safe_load(source.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError("configuration must be a mapping")
+    value.setdefault("launch_file", str(Path(__file__).with_name("backend.launch.py")))
     missing = [key for key in REQUIRED if key not in value]
     if missing:
         raise ValueError(f"missing configuration fields: {', '.join(missing)}")
@@ -53,8 +53,8 @@ def load_config(path: str | Path | None = None) -> dict:
             "session_dir",
             "map_file",
             "pcd_path",
-            "launch_file",
             "pose_cache_file",
+            "snapshot_dir",
         }:
             if not isinstance(item, str) or not item.strip():
                 raise ValueError(f"{key} must be a path")
