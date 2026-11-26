@@ -20,7 +20,7 @@ from localization.relocalization import (
     ScanMatcher,
     load_pose_cache,
     map_identity,
-    save_pose_cache,
+    pose_cache_value,
 )
 
 
@@ -100,14 +100,19 @@ def run(cfg: dict) -> None:
     identity = map_identity(cfg["map_file"])
     cache_file = cfg.get("pose_cache_file", str(Path(cfg["session_dir"]) / "last_pose.json"))
 
-    from .snapshot import grid_value, write_snapshot
+    from .snapshot import grid_value
+    from .view_data import LatestJsonWriter
 
     snapshot_dir = cfg.get("snapshot_dir")
+    record_paths = {"cache": cache_file}
+    if snapshot_dir:
+        record_paths.update({name: Path(snapshot_dir) / (name + ".json") for name in ("map", "pose")})
+    record_writer = LatestJsonWriter(record_paths)
 
     def on_map(msg):
         nonlocal grid, info
         if snapshot_dir:
-            write_snapshot(snapshot_dir, "map", grid_value(msg))
+            record_writer.submit("map", {**grid_value(msg), "issued_monotonic": time.monotonic()})
         grid = np.asarray(msg.data, dtype=np.int16).reshape(msg.info.height, msg.info.width)
         p, q = msg.info.origin.position, msg.info.origin.orientation
         info = (msg.info.resolution, [p.x, p.y, 2 * math.atan2(q.z, q.w)])
@@ -591,7 +596,7 @@ def run(cfg: dict) -> None:
                 if healthy:
                     localization_mode = "tracking"
                     if now - last_cache_save > 2:
-                        save_pose_cache(cache_file, identity, pose)
+                        record_writer.submit("cache", pose_cache_value(identity, pose))
                         last_cache_save = now
                     if relocalize_request is not None:
                         endpoint.emit(
@@ -665,8 +670,9 @@ def run(cfg: dict) -> None:
                         },
                     )
                 if snapshot_dir and pose is not None:
-                    write_snapshot(
-                        snapshot_dir, "pose", {"pose": pose, "frame_id": "map", "healthy": healthy}
+                    record_writer.submit(
+                        "pose", {"pose": pose, "frame_id": "map", "healthy": healthy,
+                                 "issued_monotonic": now}
                     )
                 last_health = now
     except Exception as exc:
@@ -675,5 +681,6 @@ def run(cfg: dict) -> None:
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
         backend.stop()
+        record_writer.close()
         ros.destroy_node()
         rclpy.shutdown()

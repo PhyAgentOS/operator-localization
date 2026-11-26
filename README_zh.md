@@ -6,7 +6,7 @@
 
 ## 运行要求
 
-- Node 版本：`0.3.0`；兼容 **Forge 2**。
+- Node 版本：`0.3.2`；兼容 **Forge 2**。
 - Linux x86_64、Ubuntu 24.04、Python 3.12 ABI、ROS 2 Jazzy。
 - Dora CLI / Python 绑定 `1.0.1`、Forge Msgs / Common `2.1.0`（精确构建依赖见 uv.lock）。
 - ROS 2、算法后端、Livox 消息工作空间由部署方提供，不包含在 Node 包内。启动前加载对应 ROS setup，运行 `--check-runtime` 检查环境；该命令不连接硬件。
@@ -15,10 +15,10 @@
 
 ## 能力边界与可选配置
 
-- `use_sim_time: true` 显式使用仿真时间；默认仍使用宿主 ROS 时间。快照以同目录独占临时文件原子更新。
+- `use_sim_time: true` 显式使用仿真时间；默认仍使用宿主 ROS 时间。地图、位姿快照及地图绑定缓存由有界后台线程写入，使用同目录独占临时文件原子更新。时间戳在入队前固定，延迟落盘不刷新观测时效；磁盘错误会被报告，不阻塞定位健康发布。缓存仍只是未经信任的定位提示。
 
 - 未指定 `launch_file` 时使用包内 ROS launch；仍支持显式自定义 launch。
-- `backend_overrides` 生成参数副本；`snapshot_dir` 输出带接收时间的地图、扫描、位姿快照。
+- `backend_overrides` 生成参数副本；`snapshot_dir` 输出带接收时间的地图、位姿快照。
 - `verify_initial_pose: true` 在定位健康校核通过后才完成初始位姿操作；未开启时保留原受理语义。健康观测包含 `recovery_required`，调用方无需解析显示文字。
 
 这些能力通过配置启用，未配置的可选功能保持关闭。Node 仅拥有自己的后端子进程，不接管其他应用进程或写入机器人厂家工程。快照是运行观测，不是控制接口；读取方负责检查时效。
