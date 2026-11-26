@@ -7,3 +7,6 @@ build/
 dist/
 out/
 *.spec
+
+.release-runtime/
+release-assets/

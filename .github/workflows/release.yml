@@ -1,0 +1,86 @@
+name: Build versioned release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing annotated vX.Y.Z tag merged into main
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    container: ros:jazzy-ros-base-noble
+    defaults:
+      run:
+        shell: bash
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Install build and external ROS runtime
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates binutils build-essential cmake python3-venv python3-colcon-common-extensions ros-jazzy-nav2-bringup ros-jazzy-nav2-smac-planner ros-jazzy-slam-toolbox ros-jazzy-rosidl-default-generators
+      - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.18'
+      - name: Validate release source and locked dependencies
+        run: |
+          git config --global --add safe.directory "$PWD"
+          mkdir -p release-assets
+          python3 scripts/check_release.py --tag "$RELEASE_TAG" > release-assets/release-metadata.json
+          uv lock --check
+          uv sync --frozen --group dev --group build --python /usr/bin/python3
+          uv run --frozen pytest -q
+          uv run --frozen ruff check .
+      - name: Build native prerequisites
+        run: bash scripts/prepare_release_runtime.sh
+      - name: Build and verify executable
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          if [ -f .release-runtime/install/setup.bash ]; then source .release-runtime/install/setup.bash; fi
+          BUILD_PYTHON=.venv/bin/python bash scripts/build_pyinstaller.sh
+          cp dist/*-v*-ubuntu24.04-x86_64-ros2-jazzy.tar.gz* release-assets/
+          (cd release-assets && sha256sum --check ./*.sha256)
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-${{ inputs.tag }}
+          path: release-assets/*
+          if-no-files-found: error
+  draft:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: release-${{ inputs.tag }}
+          path: release-assets
+      - name: Attach verified artifacts without replacing a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum --check ./*.sha256
+          if gh release view "$RELEASE_TAG" --json isDraft > /tmp/existing-release.json 2>/tmp/release-error; then
+            echo 'Release exists. Inspect it; do not overwrite immutable assets.' >&2
+            exit 1
+          elif ! grep -qi 'release not found' /tmp/release-error; then
+            cat /tmp/release-error >&2
+            exit 1
+          fi
+          printf 'Forge 2 / Dora 1.0.1. Ubuntu 24.04 x86_64, Python 3.12 ABI, external ROS 2 Jazzy required. See release-metadata.json for exact source. No physical hardware acceptance is implied. Resource-platform registration is a separate step.\n' > /tmp/release-notes
+          gh release create "$RELEASE_TAG" --verify-tag --draft --latest=false --title "$RELEASE_TAG (Forge 2.x)" --notes-file /tmp/release-notes ./*
