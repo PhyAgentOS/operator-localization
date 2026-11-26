@@ -2,6 +2,7 @@
 
 import json
 import math
+import tempfile
 import time
 from pathlib import Path
 
@@ -11,11 +12,23 @@ def write_snapshot(folder, name, value):
         return
     path = Path(folder) / (name + ".json")
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(
-        json.dumps({**value, "issued_monotonic": time.monotonic()}, allow_nan=False)
-    )
-    temporary.replace(path)
+    # Serialize before allocating a temporary file: invalid values leave the
+    # previous snapshot untouched. Every call owns its temporary file, including
+    # concurrent writers in one process or in different node processes.
+    payload = json.dumps({**value, "issued_monotonic": time.monotonic()}, allow_nan=False)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent,
+            prefix=f".{path.name}.", suffix=".tmp", delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(payload)
+        # Same-directory rename publishes one complete JSON document atomically.
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def pose_value(pose):

@@ -19,7 +19,7 @@ def generate_launch_description():
         actions += [node, RegisterEventHandler(OnProcessExit(target_action=node,
                     on_exit=[EmitEvent(event=Shutdown(reason=name+" exited"))]))]
     actions.append(Node(package="nav2_lifecycle_manager", executable="lifecycle_manager",
-        name="lifecycle_manager_localization", output="screen", parameters=[{
+        name="lifecycle_manager_localization", output="screen", parameters=[params, {
             "autostart": ParameterValue(LaunchConfiguration("autostart"),value_type=bool),
             "node_names": names, "bond_timeout": 4.0}]))
     return LaunchDescription([DeclareLaunchArgument("params_file"),

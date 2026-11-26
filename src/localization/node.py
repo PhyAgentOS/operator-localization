@@ -45,17 +45,24 @@ def run(cfg: dict) -> None:
     from lifecycle_msgs.srv import GetState
     from nav2_msgs.srv import ManageLifecycleNodes
     from nav_msgs.msg import OccupancyGrid, Odometry
+    from rclpy.parameter import Parameter
     from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
     from sensor_msgs.msg import LaserScan
     from std_srvs.srv import Empty
     from tf2_ros import Buffer, TransformListener
 
     rclpy.init(domain_id=cfg["ros_domain_id"])
-    ros = rclpy.create_node("forge_amcl_adapter")
+    simulation_time = cfg.get("use_sim_time", False)
+    if not isinstance(simulation_time, bool):
+        raise ValueError("use_sim_time must be a boolean")
+    ros = rclpy.create_node(
+        "forge_amcl_adapter",
+        parameter_overrides=[Parameter("use_sim_time", value=simulation_time)],
+    )
     dora = Node()
     endpoint = PolicyEndpoint(dora, "localization")
     backend = OwnedProcess()
-    buffer = Buffer()
+    buffer = Buffer(node=ros) if simulation_time else Buffer()
     _listener = TransformListener(buffer, ros)
     pub = ros.create_publisher(PoseWithCovarianceStamped, "/initialpose", 10)
     no_motion = ros.create_client(Empty, "/request_nomotion_update")
