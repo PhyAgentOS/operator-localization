@@ -44,9 +44,12 @@ def load_pose_cache(path, map_id, *, max_age=7 * 86400, now=None):
 
 
 def save_pose_cache(path, map_id, pose):
-    atomic_json(
-        Path(path), {"map_id": map_id, "pose": planar_pose(pose), "saved_unix": time.time()}
-    )
+    atomic_json(Path(path), pose_cache_value(map_id, pose))
+
+
+def pose_cache_value(map_id, pose):
+    """Capture a map-bound hint now; persistence must not refresh its timestamp."""
+    return {"map_id": map_id, "pose": planar_pose(pose), "saved_unix": time.time()}
 
 
 @dataclass

@@ -6,7 +6,7 @@ Manages the map server and AMCL, stationary automatic localization candidates, h
 
 ## Runtime
 
-- Node `0.3.0`, Forge 2, Dora CLI/Python bindings 1.0.1, Forge Msgs/Common 2.1.0; exact build dependencies are in `uv.lock`.
+- Node `0.3.2`, Forge 2, Dora CLI/Python bindings 1.0.1, Forge Msgs/Common 2.1.0; exact build dependencies are in `uv.lock`.
 - Ubuntu 24.04 x86_64, Python 3.12 ABI, external ROS 2 Jazzy and required algorithm/message overlays.
 - Source the ROS/overlay setup before launch. `localization --check-runtime` validates imports and generated wire types without opening hardware.
 - The `directory_tar_gz` artifact contains the complete `localization/` runtime; execute `localization/localization`. Do not move its executable away from its libraries.
@@ -18,7 +18,7 @@ The default backend launch is packaged; an explicit launch_file remains supporte
 
 Optional capabilities remain disabled when unconfigured. The Node owns only its own child processes; it does not modify vendor projects or control unrelated applications. Snapshots are observations, not a control API; consumers must verify freshness.
 
-`use_sim_time: true` explicitly selects simulation time; the default remains host ROS time. Snapshot writes use an owned same-directory temporary file and atomic replacement.
+`use_sim_time: true` explicitly selects simulation time; the default remains host ROS time. Map/pose snapshots and map-bound pose-cache records use a bounded background writer with unique same-directory temporary files and atomic replacement. Timestamps are captured before enqueueing; delayed persistence never makes an old observation fresh. Disk failures are reported without blocking health publication. Cached poses remain untrusted localization hints.
 
 ## Development and packaging
 

@@ -1,6 +1,6 @@
 [project]
 name = "forge-localization"
-version = "0.3.1"
+version = "0.3.2"
 description = "Reusable Forge localization component for ROS2 navigation"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
