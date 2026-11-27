@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 def validate(root, tag):
-    if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z0-9.+-]*)?", tag):
-        raise ValueError("Expected a versioned vX.Y.Z tag")
+    if not re.fullmatch(r"v2\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", tag):
+        raise ValueError("Forge 2 releases require a stable v2.X.Y tag")
     project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
     if tag != "v" + project["version"]:
         raise ValueError("Tag must match the source version")

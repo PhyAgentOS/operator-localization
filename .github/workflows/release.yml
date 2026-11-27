@@ -2,8 +2,14 @@ name: Build versioned release
 on:
   workflow_dispatch:
     inputs:
+      release_line:
+        description: Forge compatibility line
+        required: true
+        type: choice
+        options: [2.x]
+        default: 2.x
       tag:
-        description: Existing annotated vX.Y.Z tag merged into main
+        description: Existing annotated stable v2.X.Y tag merged into main
         required: true
         type: string
 permissions:
@@ -20,7 +26,12 @@ jobs:
         shell: bash
     env:
       RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_LINE: ${{ inputs.release_line }}
     steps:
+      - name: Validate requested release line
+        run: |
+          [[ "$RELEASE_LINE" == "2.x" ]] || { echo 'Expected release_line=2.x' >&2; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v2\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Expected stable v2.X.Y tag' >&2; exit 1; }
       - name: Install build and external ROS runtime
         run: |
           apt-get update
